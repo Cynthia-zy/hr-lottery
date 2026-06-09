@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>HR组Roleplay抽签 | 云端同步</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', 'Roboto', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+        body { background: linear-gradient(135deg, #eef2fa 0%, #dce5f2 100%); min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 24px; }
+        .card { max-width: 760px; width: 100%; background: #ffffff; border-radius: 36px; box-shadow: 0 25px 45px -12px rgba(0, 32, 64, 0.2); overflow: hidden; }
+        .header { background: #0a2f44; padding: 28px 24px 24px 28px; border-bottom: 4px solid #2c7cb6; }
+        .header h1 { color: white; font-size: 1.9rem; font-weight: 600; display: flex; align-items: center; gap: 12px; }
+        .header h1:before { content: "🎲"; font-size: 1.8rem; }
+        .main-content { padding: 32px 30px 28px; }
+        .form-row { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 28px; }
+        .form-group { flex: 1; min-width: 180px; }
+        .form-group label { display: block; font-weight: 600; color: #1e4663; margin-bottom: 8px; font-size: 0.9rem; }
+        .form-group input { width: 100%; padding: 12px 18px; border: 1.5px solid #cfdfed; border-radius: 28px; font-size: 0.95rem; background: #fdfdfe; outline: none; }
+        .form-group input:focus { border-color: #2c7cb6; box-shadow: 0 0 0 3px rgba(44, 124, 182, 0.15); }
+        .hint-text { font-size: 0.7rem; color: #6f8eae; margin-top: 6px; margin-left: 12px; }
+        .action-buttons { display: flex; gap: 16px; margin: 16px 0 28px 0; flex-wrap: wrap; }
+        .btn { flex: 1; padding: 13px 0; border: none; border-radius: 44px; font-weight: 700; font-size: 0.95rem; cursor: pointer; background: #ecf3f9; color: #1e4663; transition: all 0.2s; }
+        .btn-primary { background: #1f6e9c; color: white; }
+        .btn-primary:hover:not(:disabled) { background: #0f5a82; transform: translateY(-2px); }
+        .btn-primary:disabled { background: #8db3cc; cursor: not-allowed; transform: none; }
+        .btn-admin { background: #2c4b6e; color: white; }
+        .btn-admin:hover { background: #1e3854; }
+        .result-area { background: #eef4fa; border-radius: 28px; padding: 18px 20px; margin: 12px 0 24px; text-align: center; border-left: 5px solid #2c7cb6; }
+        .result-label { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; color: #5b7f9e; }
+        .result-value { font-size: 1.65rem; font-weight: 700; margin-top: 8px; color: #0a3146; }
+        .info-message { background: #eef2f9; border-radius: 20px; padding: 16px 20px; margin-top: 20px; text-align: center; color: #2c5a7a; font-size: 0.85rem; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .info-message:before { content: "☁️"; font-size: 1rem; }
+        .warning-message { background: #fff3e0; border-radius: 20px; padding: 12px 16px; margin-top: 16px; text-align: center; color: #c77e2c; font-size: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .warning-message:before { content: "⚠️"; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 35, 55, 0.5); backdrop-filter: blur(4px); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-window { background: white; max-width: 880px; width: 90%; border-radius: 36px; padding: 28px 26px; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #e2edf6; padding-bottom: 12px; margin-bottom: 20px; }
+        .modal-header h2 { color: #0a2f44; }
+        .close-icon { font-size: 28px; cursor: pointer; color: #7997b3; }
+        .admin-table-wrap { max-height: 360px; overflow-y: auto; margin: 18px 0; border-radius: 20px; border: 1px solid #e2eaf1; }
+        .admin-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .admin-table th, .admin-table td { border: 1px solid #cddfea; padding: 10px 8px; text-align: left; }
+        .admin-table th { background: #eaf2f9; }
+        .flex-btns { display: flex; gap: 14px; margin-top: 20px; justify-content: flex-end; flex-wrap: wrap; }
+        .danger-btn { background: #b22234; color: white; border: none; }
+        .danger-btn:hover { background: #8b1a1a; }
+        input.password-input { width: 100%; padding: 14px; border-radius: 44px; border: 1px solid #cbdde9; margin: 16px 0; }
+        .locked-info { font-size: 0.7rem; color: #e67e22; margin-top: 8px; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <div class="header"><h1>HR组roleplay抽签</h1></div>
+    <div class="main-content">
+        <div class="form-row">
+            <div class="form-group"><label>🏢 办事处</label><input type="text" id="officeInput" placeholder="例：上海一办"><div class="hint-text">例如：上海一办、北京二办</div></div>
+            <div class="form-group"><label>👥 姓名</label><input type="text" id="userNameInput" placeholder="请输入您的姓名"></div>
+        </div>
+        <div class="action-buttons">
+            <button class="btn btn-primary" id="drawActionBtn">🎯 开始抽签</button>
+            <button class="btn btn-admin" id="adminModeBtn">🔐 管理员模式</button>
+        </div>
+        <div class="result-area">
+            <div class="result-label">本次抽中案例</div>
+            <div class="result-value" id="currentResultText">—— 点击抽签 ——</div>
+        </div>
+        <div class="info-message">Railway 云端部署 · 每人仅限抽签一次 | 管理员入口</div>
+        <div id="warningMsg" class="warning-message" style="display: none;"></div>
+    </div>
+</div>
+
+<!-- 管理员密码模态框 -->
+<div id="passwordModal" class="modal">
+    <div class="modal-window" style="max-width:400px">
+        <div class="modal-header"><h2>🔐 管理员验证</h2><span class="close-icon" id="closePwdModalBtn">&times;</span></div>
+        <p>请输入管理员密码</p>
+        <input type="password" id="adminPwdInput" class="password-input" placeholder="请输入密码">
+        <div class="flex-btns">
+            <button class="btn btn-primary" id="confirmPwdBtn">确认</button>
+            <button class="btn btn-secondary" id="cancelPwdBtn">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 管理员后台 -->
+<div id="adminDashboard" class="modal">
+    <div class="modal-window">
+        <div class="modal-header"><h2>📊 管理员后台 · 全部抽签记录</h2><span class="close-icon" id="closeDashboardBtn">&times;</span></div>
+        <div class="admin-table-wrap">
+            <table class="admin-table" id="adminRecordTable">
+                <thead><tr><th>序号</th><th>办事处</th><th>姓名</th><th>抽中案例</th><th>抽签时间</th></thead>
+                <tbody id="adminTableTbody"><tr><td colspan="5">加载中...</td></tbody>
+            </table>
+        </div>
+        <div class="flex-btns" style="justify-content: space-between;">
+            <div><button class="btn btn-primary" id="exportExcelAdminBtn">📎 导出 Excel</button><button class="btn btn-secondary" id="refreshAdminTableBtn">🔄 刷新</button></div>
+            <div><button class="btn danger-btn" id="adminResetBtn">🗑️ 重置抽签记录</button><button class="btn btn-secondary" id="exitAdminBtn">关闭</button></div>
+        </div>
+        <hr><div style="font-size:0.75rem; text-align:center;">⚠️ 重置将清除所有记录，不可恢复。注意：重置后用户可重新抽签。</div>
+    </div>
+</div>
+
+<script>
+    // ---------- 抽签配置 ----------
+    const CASE_LATE = "艾瑞康晚期一线case";
+    const CASE_EARLY = "艾瑞康早期case";
+    const CASE_DUAL = "双艾case";
+    const WEIGHTS = [
+        { name: CASE_LATE, weight: 40 },
+        { name: CASE_EARLY, weight: 40 },
+        { name: CASE_DUAL, weight: 20 }
+    ];
+    
+    function drawRandomCase() {
+        const total = WEIGHTS.reduce((s, i) => s + i.weight, 0);
+        let r = Math.random() * total;
+        let acc = 0;
+        for (let item of WEIGHTS) {
+            acc += item.weight;
+            if (r <= acc) return item.name;
+        }
+        return CASE_LATE;
+    }
+
+    // 全局变量
+    let hasDrawn = false;      // 当前用户是否已经抽过签（基于本地缓存）
+    let currentUserKey = '';   // 当前用户的唯一标识（办事处+姓名）
+    let allRecords = [];        // 缓存所有记录，用于快速判断
+
+    // 辅助函数：生成用户唯一标识
+    function getUserKey(office, name) {
+        return `${office.trim()}|${name.trim()}`;
+    }
+
+    // 检查当前用户是否已经抽过签（从云端记录中查找）
+    function checkUserHasDrawn(office, name) {
+        if (!office || !name) return false;
+        const userKey = getUserKey(office, name);
+        return allRecords.some(record => {
+            const recordKey = getUserKey(record.office, record.name);
+            return recordKey === userKey;
+        });
+    }
+
+    // 加载所有记录（用于检查重复抽签）
+    async function loadAllRecords() {
+        try {
+            const res = await fetch(`/api/records`);
+            const records = await res.json();
+            allRecords = records;
+            return records;
+        } catch (err) {
+            console.error("加载记录失败", err);
+            return [];
+        }
+    }
+
+    // 更新UI：根据是否已抽签禁用按钮
+    function updateDrawButtonState() {
+        const office = document.getElementById("officeInput").value.trim();
+        const name = document.getElementById("userNameInput").value.trim();
+        const drawBtn = document.getElementById("drawActionBtn");
+        
+        if (office && name) {
+            const userHasDrawn = checkUserHasDrawn(office, name);
+            if (userHasDrawn) {
+                drawBtn.disabled = true;
+                drawBtn.style.opacity = "0.6";
+                const warningDiv = document.getElementById("warningMsg");
+                warningDiv.style.display = "flex";
+                warningDiv.innerHTML = `⚠️ ${office} - ${name} 已完成抽签，每人仅限一次。如需重新抽签，请联系管理员重置记录。`;
+            } else {
+                drawBtn.disabled = false;
+                drawBtn.style.opacity = "1";
+                const warningDiv = document.getElementById("warningMsg");
+                warningDiv.style.display = "none";
+            }
+        } else {
+            // 信息未填写完整时，不禁用，但要提示
+            drawBtn.disabled = false;
+            drawBtn.style.opacity = "1";
+            const warningDiv = document.getElementById("warningMsg");
+            warningDiv.style.display = "none";
+        }
+    }
+
+    // 抽签主函数
+    async function onDrawHandler() {
+        const office = document.getElementById("officeInput").value.trim();
+        const name = document.getElementById("userNameInput").value.trim();
+        
+        if (!office) { alert("请填写办事处"); return; }
+        if (!name) { alert("请填写姓名"); return; }
+        
+        // 二次确认：是否已经抽过
+        const alreadyDrawn = checkUserHasDrawn(office, name);
+        if (alreadyDrawn) {
+            alert(`⚠️ ${office} - ${name} 已完成抽签，每人仅限一次！\n如需重新抽签，请联系管理员重置记录。`);
+            updateDrawButtonState();
+            return;
+        }
+        
+        const selected = drawRandomCase();
+        document.getElementById("currentResultText").innerText = selected;
+        const timestamp = new Date().toLocaleString('zh-CN', { hour12: false });
+        
+        try {
+            const res = await fetch(`/api/draw`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ office, name, caseResult: selected, timestamp })
+            });
+            if (!res.ok) throw new Error();
+            
+            // 抽签成功后，重新加载记录并更新按钮状态
+            await loadAllRecords();
+            updateDrawButtonState();
+            
+            // 提示成功
+            alert(`✅ 抽签成功！您抽中了：${selected}\n记录已保存到云端。`);
+            
+            // 如果管理员面板开着，刷新表格
+            if (document.getElementById("adminDashboard").style.display === "flex") {
+                await loadAdminRecords();
+            }
+        } catch (err) {
+            alert("保存失败，请稍后重试");
+        }
+    }
+
+    // 管理员：加载所有记录
+    async function loadAdminRecords() {
+        try {
+            const res = await fetch(`/api/records`);
+            const records = await res.json();
+            const tbody = document.getElementById("adminTableTbody");
+            if (!records.length) {
+                tbody.innerHTML = '<tr><td colspan="5">暂无抽签记录</td></tr>';
+                return;
+            }
+            let html = '';
+            for (let rec of records) {
+                html += `<tr>
+                    <td>${rec.id}</td>
+                    <td>${escapeHtml(rec.office)}</td>
+                    <td>${escapeHtml(rec.name)}</td>
+                    <td>${escapeHtml(rec.caseResult)}</td>
+                    <td>${rec.timestamp}</td>
+                </tr>`;
+            }
+            tbody.innerHTML = html;
+        } catch (err) {
+            alert("加载记录失败");
+        }
+    }
+
+    // 重置所有记录（管理员）
+    async function resetAllRecords() {
+        if (!confirm("⚠️ 管理员确认：重置将清除所有抽签记录，此操作不可撤销！\n\n注意：重置后所有用户可重新抽签。确定要清空吗？")) return;
+        try {
+            const res = await fetch(`/api/reset`, { method: 'DELETE' });
+            if (res.ok) {
+                alert("✅ 已清空所有抽签记录，用户可重新抽签");
+                await loadAllRecords();
+                updateDrawButtonState();
+                if (document.getElementById("adminDashboard").style.display === "flex") {
+                    await loadAdminRecords();
+                }
+                document.getElementById("currentResultText").innerText = "—— 点击抽签 ——";
+            } else {
+                alert("重置失败");
+            }
+        } catch (err) {
+            alert("请求失败");
+        }
+    }
+
+    // 导出Excel
+    async function exportToExcel() {
+        try {
+            const res = await fetch(`/api/records`);
+            const records = await res.json();
+            if (!records.length) { alert("无记录可导出"); return; }
+            const sheetData = [["序号", "办事处", "姓名", "抽中案例", "抽签时间"]];
+            records.forEach(r => sheetData.push([r.id, r.office, r.name, r.caseResult, r.timestamp]));
+            const ws = XLSX.utils.aoa_to_sheet(sheetData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "HR抽签记录");
+            XLSX.writeFile(wb, `HR_Roleplay_抽签记录_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.xlsx`);
+        } catch (err) {
+            alert("导出失败");
+        }
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    }
+
+    // ---------- 管理员密码逻辑（密码不显示在页面上）----------
+    const ADMIN_CODE = "0610";
+    
+    function openPasswordModal() {
+        document.getElementById("passwordModal").style.display = "flex";
+        document.getElementById("adminPwdInput").value = "";
+    }
+    function closePasswordModal() { document.getElementById("passwordModal").style.display = "none"; }
+    async function verifyAndEnter() {
+        const pwdInput = document.getElementById("adminPwdInput").value;
+        if (pwdInput === ADMIN_CODE) {
+            closePasswordModal();
+            await loadAdminRecords();
+            document.getElementById("adminDashboard").style.display = "flex";
+        } else {
+            alert("密码错误，无法进入管理员模式");
+            document.getElementById("adminPwdInput").value = "";
+        }
+    }
+    function closeAdminDashboard() { document.getElementById("adminDashboard").style.display = "none"; }
+
+    // 监听输入框变化，实时检查抽签状态
+    function bindInputEvents() {
+        const officeInput = document.getElementById("officeInput");
+        const nameInput = document.getElementById("userNameInput");
+        
+        officeInput.addEventListener('input', () => {
+            updateDrawButtonState();
+            // 清空结果显示
+            if (!officeInput.value.trim() || !nameInput.value.trim()) {
+                document.getElementById("currentResultText").innerText = "—— 点击抽签 ——";
+            }
+        });
+        nameInput.addEventListener('input', () => {
+            updateDrawButtonState();
+            if (!officeInput.value.trim() || !nameInput.value.trim()) {
+                document.getElementById("currentResultText").innerText = "—— 点击抽签 ——";
+            }
+        });
+    }
+
+    // 页面初始化
+    async function init() {
+        await loadAllRecords();
+        bindInputEvents();
+        updateDrawButtonState();
+        
+        // 绑定按钮事件
+        document.getElementById("drawActionBtn").addEventListener("click", onDrawHandler);
+        document.getElementById("adminModeBtn").addEventListener("click", openPasswordModal);
+        document.getElementById("closePwdModalBtn").addEventListener("click", closePasswordModal);
+        document.getElementById("cancelPwdBtn").addEventListener("click", closePasswordModal);
+        document.getElementById("confirmPwdBtn").addEventListener("click", verifyAndEnter);
+        document.getElementById("closeDashboardBtn").addEventListener("click", closeAdminDashboard);
+        document.getElementById("exitAdminBtn").addEventListener("click", closeAdminDashboard);
+        document.getElementById("refreshAdminTableBtn").addEventListener("click", loadAdminRecords);
+        document.getElementById("exportExcelAdminBtn").addEventListener("click", exportToExcel);
+        document.getElementById("adminResetBtn").addEventListener("click", resetAllRecords);
+        
+        // 点击模态框背景关闭
+        window.addEventListener("click", e => {
+            if (e.target === document.getElementById("passwordModal")) closePasswordModal();
+            if (e.target === document.getElementById("adminDashboard")) closeAdminDashboard();
+        });
+    }
+    
+    init();
+</script>
+</body>
+</html>
